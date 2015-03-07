@@ -136,13 +136,17 @@ public class ConsumerApp
 	    			consumer_threads[i] = new Thread(new Runnable() {
 			    		@Override
 						public void run() {
+			    			// This is an actual consumer thread
 							try {
+								// Create a channel and start consuming
+								log.info("Create a channel and start consuming");
 								Channel ch = conn.createChannel();
 								ch.basicQos(prefetch);
 								QueueingConsumer qc = new QueueingConsumer(ch);
 								String consumer_tag = ch.basicConsume(queue, false, qc);
 								long delivery_wait = 100;
 								int no_delivery = 0;
+
 								log.info("Enter consumer loop for consumer " + consumer_tag);
 								while (!shutdown) {
 									try {
@@ -170,8 +174,11 @@ public class ConsumerApp
 										log.error("Waiting", e);
 									}
 								}
+								
+								// clean up
 								log.info("Left consumer loop so cancel consumer " + consumer_tag);
 								ch.basicCancel(consumer_tag);
+								
 								log.info("Close channel");
 								ch.close();
 							} catch (IOException e) {
