@@ -82,7 +82,7 @@ public class ConsumerApp
 				log.error("Reading System.in", e);
 			}
 
-			log.info("Shut down");
+			log.info("Start shutdown");
 			synchronized (shutdown_event) {
 				shutdown = true;
 				shutdown_event.notifyAll();
@@ -127,6 +127,10 @@ public class ConsumerApp
     	Thread t = new Thread(new Runnable() {
     		@Override
 			public void run() {
+    			// This is the consumer "master" thread
+    			
+    			// Create the consumer threads
+    			log.info("Consumer master creating consumers");
 	    		Thread[] consumer_threads = new Thread[consumers];
 	    		for (int i = 0; i < consumers; i++) {
 	    			consumer_threads[i] = new Thread(new Runnable() {
@@ -175,9 +179,12 @@ public class ConsumerApp
 							}
 							log.info("Consumer done");
 						}
-	    			}, "ConsumerThread-" + i);
+	    			}, "Consumer-" + i);
 	    			consumer_threads[i].start();
 	    		}
+	    		
+	    		// wait for shutdown
+	    		log.info("Consumer master waiting for shutdown");
 	    		while (!shutdown) {
 	    			synchronized (shutdown_event) {
 	    				try {
@@ -187,7 +194,9 @@ public class ConsumerApp
 						}
 	    			}
 	    		}
-	    		log.info("Consumer shutting down");
+	    		
+	    		// wait for the consumer threads to exit
+	    		log.info("Consumer master joining consumer threads");
 				for (int i = 0; i < consumers; i++) {
 					if (consumer_threads[i].isAlive()) {
 						try {
@@ -200,15 +209,18 @@ public class ConsumerApp
 						log.info("Consumer " + i + " not alive");
 					}
 				}
+				
+				// clean up
+				log.info("Consumer master closing connection");
 				try {
-					log.info("Close connection");
 					conn.close();
 				} catch (IOException e) {
 					log.error("Closing connection", e);
 				}
-				log.info("Consumer shut down");
+
+				log.info("Consumer master done");
     		}
-    	}, "Consumer");
+    	}, "ConsumerMaster");
     	t.start();
     	return t;
     }

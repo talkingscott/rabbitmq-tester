@@ -85,7 +85,7 @@ public class PublisherApp
 				log.error("Reading System.in", e);
 			}
 
-			log.info("Shut down");
+			log.info("Start shutdown");
 			synchronized (shutdown_event) {
 				shutdown = true;
 				shutdown_event.notifyAll();
