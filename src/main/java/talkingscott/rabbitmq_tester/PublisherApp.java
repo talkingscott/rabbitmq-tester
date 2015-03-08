@@ -132,6 +132,7 @@ public class PublisherApp
 			public void run() {
 				try {
 					long msg_id = ThreadLocalRandom.current().nextLong(100000000, 200000000);
+					int msg_count = 0;
 					Channel ch = conn.createChannel();
 					log.info("Start publisher loop");
 					while (!shutdown) {
@@ -159,11 +160,12 @@ public class PublisherApp
 							long publish_ms = System.currentTimeMillis() - millis;
 							log.info("publish msg: " + message_id + " length: " + body_length + " publish: " + publish_ms);
 							++msg_id;
+							++msg_count;
 							long pause_time = em.pauseTime();
 							if (pause_time > 0) {
 								synchronized (shutdown_event) {
 									if (!shutdown) {
-										log.info("pause publish: " + pause_time);
+										log.info("pause publish: " + pause_time + " messages: " + msg_count);
 										shutdown_event.wait(pause_time);
 									}
 								}
@@ -223,6 +225,8 @@ public class PublisherApp
 		private long min_pause_ms = 30000;
 		private long max_pause_ms = 300000;
 		private float pause_frequency = (float) 0.00001;
+		
+		private int pauses = 0;
 
 		ExecutionModel build() {
 			return new ExecutionModel() {
@@ -239,7 +243,22 @@ public class PublisherApp
 				public long pauseTime() {
 			    	// TODO: model this better
 			    	if (ThreadLocalRandom.current().nextFloat() < pause_frequency) {
-			        	return ThreadLocalRandom.current().nextLong(min_pause_ms, max_pause_ms);
+			        	long pause_ms = ThreadLocalRandom.current().nextLong(min_pause_ms, max_pause_ms);
+			        	// given a cycle of 16 pauses, bias toward shorter
+			        	// pauses early and longer toward the end
+			        	if (pauses % 16 == 0) {
+			        		pause_ms /= 4;
+			        	} else if (pauses % 16 == 1) {
+			        		pause_ms /= 2;
+			        	} else if (pauses % 16 == 2) {
+			        		pause_ms /= 4;
+			        	} else if (pauses % 16 == 12) {
+			        		pause_ms *= 2;
+			        	} else if (pauses % 16 == 14) {
+			        		pause_ms *= 2;
+			        	}
+			        	++pauses;
+			        	return pause_ms;
 			    	}
 					return 0;
 				}
