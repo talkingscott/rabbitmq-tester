@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
-import argparse
 import re
 import sys
 
-class ConsumerStatsHandler:
-  '''Parser handler that collects consumer status'''
+class ConsumerStatsHandler(object):
+  '''Parser handler that collects consumer stats'''
 
   def __init__(self, long_poll_threshold, print_long_poll, long_ack_threshold, print_long_ack):
     self.pattern = 'consume msg: (\d+) poll: (\d+) process: (\d+) ack: (\d+)'
@@ -54,7 +53,7 @@ class ConsumerStatsHandler:
       if self.print_long_ack:
         print >>sys.stderr, line,
 
-class PublisherStatsHandler:
+class PublisherStatsHandler(object):
   '''Parser handler that collects publisher stats'''
 
   def __init__(self, long_publish_threshold, print_long_publish):
@@ -90,7 +89,7 @@ class PublisherStatsHandler:
       if self.print_long_publish:
         print >>sys.stderr, line,
 
-class MuxingHandler:
+class MuxingHandler(object):
   '''Parser handler that multiplexes other handlers'''
 
   def __init__(self, handlers):
@@ -121,6 +120,8 @@ def parse_file(path, handler):
       handler.try_parse(line)
 
 if __name__ == '__main__':
+  import argparse
+
   parser = argparse.ArgumentParser(description='Parse rabbitmq-tester log files.')
   parser.add_argument('--long-publish-threshold', type=int, default=sys.maxint,
                      help='lowest publish ms that is considered long')

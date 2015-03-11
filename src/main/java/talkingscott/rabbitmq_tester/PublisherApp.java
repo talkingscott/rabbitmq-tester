@@ -64,7 +64,8 @@ public class PublisherApp
 				.minPrepareMs(Long.parseLong(properties.getProperty("min_prepare_ms")))
 				.maxPauseMs(Long.parseLong(properties.getProperty("max_pause_ms")))
 				.minPauseMs(Long.parseLong(properties.getProperty("min_pause_ms")))
-				.pauseFrequency(Float.parseFloat(properties.getProperty("pause_frequency")))
+				.maxInterPauseMsgs(Long.parseLong(properties.getProperty("max_interpause_msgs")))
+				.minInterPauseMsgs(Long.parseLong(properties.getProperty("min_interpause_msgs")))
 				.build();
 
 			Thread t = startPublisher(properties.getProperty("host"), 
@@ -133,6 +134,7 @@ public class PublisherApp
 				try {
 					long msg_id = ThreadLocalRandom.current().nextLong(100000000, 200000000);
 					int msg_count = 0;
+					long msgs_until_pause = em.messagesUntilPause();
 					Channel ch = conn.createChannel();
 					log.info("Start publisher loop");
 					while (!shutdown) {
@@ -161,14 +163,16 @@ public class PublisherApp
 							log.info("publish msg: " + message_id + " length: " + body_length + " publish: " + publish_ms);
 							++msg_id;
 							++msg_count;
-							long pause_time = em.pauseTime();
-							if (pause_time > 0) {
+							--msgs_until_pause;
+							if (msgs_until_pause <= 0) {
+								long pause_time = em.pauseTime();
 								synchronized (shutdown_event) {
 									if (!shutdown) {
 										log.info("pause publish: " + pause_time + " messages: " + msg_count);
 										shutdown_event.wait(pause_time);
 									}
 								}
+								msgs_until_pause = em.messagesUntilPause();
 							}
 						} catch (InterruptedException e) {
 							log.error("Waiting", e);
@@ -197,6 +201,11 @@ public class PublisherApp
         int bodyLength();
 
         /**
+         * Models the length of message burst until the next pause
+         */
+        long messagesUntilPause();
+        
+        /**
          * Models the pause time between bursts of messages
          */
         long pauseTime();
@@ -224,9 +233,8 @@ public class PublisherApp
 
 		private long min_pause_ms = 30000;
 		private long max_pause_ms = 300000;
-		private float pause_frequency = (float) 0.00001;
-		
-		private int pauses = 0;
+		private long min_interpause_msgs = 100000;
+		private long max_interpause_msgs = 200000;
 
 		ExecutionModel build() {
 			return new ExecutionModel() {
@@ -240,27 +248,15 @@ public class PublisherApp
 				}
 
 				@Override
+				public long messagesUntilPause() {
+			    	// TODO: model this better
+			        return ThreadLocalRandom.current().nextLong(min_interpause_msgs, max_interpause_msgs);
+				}
+
+				@Override
 				public long pauseTime() {
 			    	// TODO: model this better
-			    	if (ThreadLocalRandom.current().nextFloat() < pause_frequency) {
-			        	long pause_ms = ThreadLocalRandom.current().nextLong(min_pause_ms, max_pause_ms);
-			        	// given a cycle of 16 pauses, bias toward shorter
-			        	// pauses early and longer toward the end
-			        	if (pauses % 16 == 0) {
-			        		pause_ms /= 4;
-			        	} else if (pauses % 16 == 1) {
-			        		pause_ms /= 2;
-			        	} else if (pauses % 16 == 2) {
-			        		pause_ms /= 4;
-			        	} else if (pauses % 16 == 12) {
-			        		pause_ms *= 2;
-			        	} else if (pauses % 16 == 14) {
-			        		pause_ms *= 2;
-			        	}
-			        	++pauses;
-			        	return pause_ms;
-			    	}
-					return 0;
+			        return ThreadLocalRandom.current().nextLong(min_pause_ms, max_pause_ms);
 				}
 
 				@Override
@@ -317,9 +313,15 @@ public class PublisherApp
     		return this;
     	}
  
-    	ExecutionModelBuilder pauseFrequency(float pause_frequency) {
-    		this.pause_frequency = pause_frequency;
+    	ExecutionModelBuilder maxInterPauseMsgs(long max_interpause_msgs) {
+    		this.max_interpause_msgs = max_interpause_msgs;
     		return this;
     	}
+    	 
+    	ExecutionModelBuilder minInterPauseMsgs(long min_interpause_msgs) {
+    		this.min_interpause_msgs = min_interpause_msgs;
+    		return this;
+    	}
+ 
     }
 }
