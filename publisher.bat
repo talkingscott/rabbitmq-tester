@@ -1,1 +1,1 @@
-java -cp target\rabbitmq-tester-0.0.1-SNAPSHOT-shaded.jar talkingscott.rabbitmq_tester.PublisherApp -p home.properties
+java -cp target\rabbitmq-tester-0.0.1-SNAPSHOT-shaded.jar talkingscott.rabbitmq_tester.PublisherApp %*

@@ -1,7 +1,7 @@
 <configuration>
 
   <appender name="CONSUMER_FILE" class="ch.qos.logback.core.FileAppender">
-    <file>ConsumerApp.log</file>
+    <file>consumer.log</file>
 
     <encoder>
       <pattern>%date %level [%thread] %logger{10} [%file:%line] %msg%n</pattern>
@@ -9,7 +9,7 @@
   </appender>
 
   <appender name="PUBLISHER_FILE" class="ch.qos.logback.core.FileAppender">
-    <file>PublisherApp.log</file>
+    <file>publisher.log</file>
 
     <encoder>
       <pattern>%date %level [%thread] %logger{10} [%file:%line] %msg%n</pattern>
@@ -30,12 +30,24 @@
     </encoder>
   </appender>
 
-  <logger name="talkingscott.rabbitmq_tester.ConsumerApp" level="INFO" additivity="false">
+  <appender name="ASYNC_CONSUMER_FILE" class="ch.qos.logback.classic.AsyncAppender">
+    <queueSize>512</queueSize>
+    <discardingThreshold>0</discardingThreshold>
     <appender-ref ref="CONSUMER_FILE" />
+  </appender>
+
+  <appender name="ASYNC_PUBLISHER_FILE" class="ch.qos.logback.classic.AsyncAppender">
+    <queueSize>512</queueSize>
+    <discardingThreshold>0</discardingThreshold>
+    <appender-ref ref="PUBLISHER_FILE" />
+  </appender>
+
+  <logger name="talkingscott.rabbitmq_tester.ConsumerApp" level="INFO" additivity="false">
+    <appender-ref ref="ASYNC_CONSUMER_FILE" />
   </logger>
 
   <logger name="talkingscott.rabbitmq_tester.PublisherApp" level="INFO" additivity="false">
-    <appender-ref ref="PUBLISHER_FILE" />
+    <appender-ref ref="ASYNC_PUBLISHER_FILE" />
   </logger>
 
   <root level="WARN">
