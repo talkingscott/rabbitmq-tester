@@ -85,6 +85,7 @@ public class PublisherApp
 					properties.getProperty("exchange"),
 					Integer.parseInt(properties.getProperty("delivery_mode")),
 					Integer.parseInt(properties.getProperty("publishers")),
+					Boolean.parseBoolean(properties.getProperty("connection_per_publisher")),
 					em);
 
 			log.info("Wait for keyboard input");
@@ -171,7 +172,7 @@ public class PublisherApp
 		return t;
 	}
 
-	private static Thread startPublisher(String host, int port, String vhost, String username, String password, String exchange, int delivery_mode, int publishers, ExecutionModel em) throws IOException {
+	private static Thread startPublisher(String host, int port, String vhost, String username, String password, String exchange, int delivery_mode, int publishers, boolean connection_per_publisher, ExecutionModel em) throws IOException {
 		final ConnectionFactory cf = new ConnectionFactory();
 		cf.setHost(host);
 		cf.setPort(port);
@@ -180,7 +181,7 @@ public class PublisherApp
 		cf.setPassword(password);
 		cf.setAutomaticRecoveryEnabled(true);
 
-		final Connection conn = cf.newConnection();
+		final Connection conn = connection_per_publisher ? null : cf.newConnection();
 
 		Thread t = new Thread(new Runnable() {
 			@Override
@@ -200,7 +201,8 @@ public class PublisherApp
 								long msg_id = ThreadLocalRandom.current().nextLong(100000000 + msg_id_base, 200000000 + msg_id_base);
 								int msg_count = 0;
 								long msgs_until_pause = em.messagesUntilPause();
-								Channel ch = conn.createChannel();
+								Connection p_conn = connection_per_publisher ? cf.newConnection() : null;
+								Channel ch = connection_per_publisher ? p_conn.createChannel() : conn.createChannel();
 
 								log.info("Enter publisher loop on channel " + ch.getChannelNumber());
 								while (!shutdown) {
@@ -248,6 +250,11 @@ public class PublisherApp
 								// clean up
 								log.info("Close channel " + ch.getChannelNumber());
 								ch.close();
+
+								if (connection_per_publisher) {
+									log.info("Close connection");
+									p_conn.close();
+								}
 							} catch (IOException e) {
 								log.error("Publisher loop", e);
 							}
@@ -285,11 +292,13 @@ public class PublisherApp
 				}
 
 				// clean up
-				log.info("Publisher master closing connection");
-				try {
-					conn.close();
-				} catch (IOException e) {
-					log.error("Closing connection", e);
+				if (!connection_per_publisher) {
+					log.info("Publisher master closing connection");
+					try {
+						conn.close();
+					} catch (IOException e) {
+						log.error("Closing connection", e);
+					}
 				}
 
 				log.info("Publisher master done");

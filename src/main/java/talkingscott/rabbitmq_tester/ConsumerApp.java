@@ -80,6 +80,7 @@ public class ConsumerApp
 					properties.getProperty("queue"),
 					Integer.parseInt(properties.getProperty("prefetch")),
 					Integer.parseInt(properties.getProperty("consumers")),
+					Boolean.parseBoolean(properties.getProperty("connection_per_consumer")),
 					em);
 
 			log.info("Wait for keyboard input");
@@ -166,7 +167,7 @@ public class ConsumerApp
 		return t;
 	}
 
-	private static Thread startConsumer(String host, int port, String vhost, String username, String password, String queue, int prefetch, int consumers, ExecutionModel em) throws IOException {
+	private static Thread startConsumer(String host, int port, String vhost, String username, String password, String queue, int prefetch, int consumers, boolean connection_per_consumer, ExecutionModel em) throws IOException {
 		final ConnectionFactory cf = new ConnectionFactory();
 		cf.setHost(host);
 		cf.setPort(port);
@@ -175,7 +176,7 @@ public class ConsumerApp
 		cf.setPassword(password);
 		cf.setAutomaticRecoveryEnabled(true);
 
-		final Connection conn = cf.newConnection();
+		final Connection conn = connection_per_consumer ? null : cf.newConnection();
 
 		Thread t = new Thread(new Runnable() {
 			@Override
@@ -193,7 +194,8 @@ public class ConsumerApp
 							try {
 								// Create a channel and start consuming
 								log.info("Create a channel and start consuming");
-								Channel ch = conn.createChannel();
+								Connection c_conn = connection_per_consumer ? cf.newConnection() : null;
+								Channel ch = connection_per_consumer ? c_conn.createChannel() : conn.createChannel();
 								ch.basicQos(prefetch);
 								QueueingConsumer qc = new QueueingConsumer(ch);
 								String consumer_tag = ch.basicConsume(queue, false, qc);
@@ -234,6 +236,11 @@ public class ConsumerApp
 
 								log.info("Close channel " + ch.getChannelNumber());
 								ch.close();
+
+								if (connection_per_consumer) {
+									log.info("Close connection");
+									c_conn.close();
+								}
 							} catch (IOException e) {
 								log.error("Consumer loop", e);
 							}
@@ -271,11 +278,13 @@ public class ConsumerApp
 				}
 
 				// clean up
-				log.info("Consumer master closing connection");
-				try {
-					conn.close();
-				} catch (IOException e) {
-					log.error("Closing connection", e);
+				if (!connection_per_consumer) {
+					log.info("Consumer master closing connection");
+					try {
+						conn.close();
+					} catch (IOException e) {
+						log.error("Closing connection", e);
+					}
 				}
 
 				log.info("Consumer master done");
